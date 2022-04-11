@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <!--
+    MIT License
+
+    Copyright 2022 Claudia Meadows
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+    -->
+
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script>
+        window.onload = () => {
+            const SECONDS_PER_MINUTE = 60
+            const MINUTES_PER_HOUR = 60
+            // Use approximate US work days per year
+            // Ref for days: https://www.workingdays.us/workingdays_holidays_2022.htm
+            // Use work days
+            const HOURS_PER_DAY = 8
+            const DAYS_PER_WEEK = 5
+            const DAYS_PER_YEAR = 250
+            const MONTHS_PER_YEAR = 12
+            const WEEKS_PER_YEAR = DAYS_PER_YEAR / DAYS_PER_WEEK
+            // Easier to just use the average number of days per month
+            const DAYS_PER_MONTH = DAYS_PER_YEAR / MONTHS_PER_YEAR
+            // Makes sub-second code a little more readable.
+            const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
+            const SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
+            const SECONDS_PER_WEEK = SECONDS_PER_DAY * DAYS_PER_WEEK
+            const SECONDS_PER_MONTH = SECONDS_PER_DAY * DAYS_PER_MONTH
+            const SECONDS_PER_YEAR = SECONDS_PER_DAY * DAYS_PER_YEAR
+
+            function getScaleValue(scale) {
+                const result = Number.parseInt(scale.trim(), 10)
+                return Number.isNaN(result) ? 1 : Math.max(result, 1)
+            }
+
+            function getDuration(name) {
+                const scale = getScaleValue(document.getElementById(`${name}-scale`).value)
+                const period = document.getElementById(`${name}-period`).value
+                switch (period) {
+                    case "s": return scale
+                    case "m": return scale * SECONDS_PER_MINUTE
+                    case "h": return scale * SECONDS_PER_HOUR
+                    case "d": return scale * SECONDS_PER_DAY
+                    case "w": return scale * SECONDS_PER_WEEK
+                    case "M": return scale * SECONDS_PER_MONTH
+                    default: throw new Error(`Unknown unit ${period}`)
+                }
+            }
+
+            function getFrequency(name) {
+                const scale = getScaleValue(document.getElementById(`${name}-scale`).value)
+                const period = document.getElementById(`${name}-period`).value
+                switch (period) {
+                    case "Y": return scale
+                    case "M": return scale * MONTHS_PER_YEAR
+                    case "w": return scale * WEEKS_PER_YEAR
+                    case "d": return scale * DAYS_PER_YEAR
+                    default: throw new Error(`Unknown unit ${period}`)
+                }
+            }
+
+            function estimateUnit(value) {
+                if (value < 2 * SECONDS_PER_MINUTE) return "second"
+                if (value < 2 * SECONDS_PER_HOUR) return "minute"
+                if (value < 2 * SECONDS_PER_DAY) return "hour"
+                if (value < 2 * SECONDS_PER_WEEK) return "day"
+                if (value < 2 * SECONDS_PER_MONTH) return "week"
+                return "month"
+            }
+
+            function estimateValue(value) {
+                if (value < 2 * SECONDS_PER_MINUTE) return value
+                if (value < 2 * SECONDS_PER_HOUR) return value / SECONDS_PER_MINUTE
+                if (value < 2 * SECONDS_PER_DAY) return value / SECONDS_PER_HOUR
+                if (value < 2 * SECONDS_PER_WEEK) return value / SECONDS_PER_DAY
+                if (value < 2 * SECONDS_PER_MONTH) return value / SECONDS_PER_WEEK
+                return value / SECONDS_PER_MONTH
+            }
+
+            function getAutomationRecommendation() {
+                const timeSpentPerTask = getDuration("time-spent")
+
+                if (timeSpentPerTask <= 0) {
+                    alert("Time spent per task must be positive.")
+                    return
+                }
+
+                const timeSavedPerTask = getDuration("time-saved")
+
+                if (timeSavedPerTask <= 0) {
+                    alert("Time saved per task must be positive.")
+                    return
+                }
+
+                const timesPerYear = getFrequency("frequency")
+
+                if (timesPerYear <= 0) {
+                    alert("Times per year must be positive.")
+                    return
+                }
+
+                const timeToAutomate = getDuration("time-improving")
+
+                if (timeToAutomate <= 0) {
+                    alert("Time to improve must be positive.")
+                    return
+                }
+
+                const timeAutomatedAway = timeSavedPerTask * timesPerYear
+                const timeSavedY1 = timeAutomatedAway * 1 - timeToAutomate
+                const timeSavedY2 = timeAutomatedAway * 2 - timeToAutomate
+                const timeSavedY3 = timeAutomatedAway * 3 - timeToAutomate
+                const timeSavedY5 = timeAutomatedAway * 5 - timeToAutomate
+
+                // If 1 full day can be shaved off by the next year, do it.
+                if (timeSavedY1 >= SECONDS_PER_DAY) {
+                    return {recommend: "improve", saved: timeSavedY1}
+                }
+
+                // If 2 full days can be shaved off by the next 2 years, do it.
+                if (timeSavedY2 >= 2 * SECONDS_PER_DAY) {
+                    return {recommend: "improve", saved: timeSavedY1}
+                }
+
+                // If a full work week can be shaved off by the next 3 years, do it.
+                if (timeSavedY3 >= SECONDS_PER_WEEK) {
+                    return {recommend: "improve", saved: timeSavedY1}
+                }
+
+                // If 2 full work weeks can be shaved off by the next 5 years, do it.
+                if (timeSavedY5 >= 2 * SECONDS_PER_WEEK) {
+                    return {recommend: "improve", saved: timeSavedY1}
+                }
+
+                // If at most a full day would be lost the first year, but time improved is high
+                // enough that a full day is saved after the second year even after accounting
+                // for that, caution.
+                if (timeSavedY1 >= -SECONDS_PER_DAY && timeSavedY2 >= SECONDS_PER_DAY) {
+                    return {recommend: "caution", saved: timeSavedY1}
+                }
+
+                // If time improved is significant but the time to improve makes the first
+                // year a wash, caution.
+                if (timeSavedY1 >= 0 && timeAutomatedAway >= SECONDS_PER_DAY) {
+                    return {recommend: "caution", saved: timeSavedY1}
+                }
+
+                return {recommend: "avoid", saved: timeSavedY1}
+            }
+
+            function initialize() {
+                const {recommend, saved} = getAutomationRecommendation()
+
+                const scale = Math.abs(saved)
+                const unit = estimateUnit(scale)
+                const value = Math.round(estimateValue(scale))
+
+                if (value === 0) {
+                    // If it's virtually a wash, always just caution.
+                    document.getElementById("result-display").dataset.recommend = "caution"
+                    document.getElementById("result-display").dataset.sign = "equal"
+                } else {
+                    document.getElementById("result-display").dataset.recommend = recommend
+                    const sign = saved > 0 ? "positive" : "negative"
+                    document.getElementById("result-display").dataset.sign = sign
+                    // They all happen to follow that same grammatical rule so meh
+                    document.getElementById(`result-${sign}`).textContent =
+                        value === 1 ? `${value} ${unit}` : `${value} ${unit}s`
+                }
+            }
+
+            document.getElementById("check-button").onclick = initialize
+
+            for (const name of [
+                "time-spent",
+                "time-saved",
+                "frequency",
+                "time-improving",
+            ]) {
+                const $scale = document.getElementById(`${name}-scale`)
+                $scale.onchange = ev => {
+                    let value = $scale.value
+                    const numValue = Number.parseFloat(value)
+                    if (Number.isNaN(numValue)) {
+                        if (value) $scale.value = ""
+                    } else if (!/^\s*\d+\s*/.test(value)) {
+                        $scale.value = Math.floor(numValue)
+                    }
+                }
+            }
+
+            function init(value, pattern, name) {
+                if (!value) return
+                const exec = pattern.exec(value)
+                if (!exec) return
+                document.getElementById(`${name}-scale`).value = getScaleValue(exec[0])
+                document.getElementById(`${name}-period`).value = exec[1]
+            }
+
+            if (location.hash.length > 1) {
+                const params = new URLSearchParams(location.hash.slice(1))
+                init(params.get("c"), /^(\d+)([smhdwM])$/, "time-spent")
+                init(params.get("s"), /^(\d+)([smhdwM])$/, "time-saved")
+                init(params.get("f"), /^(\d+)([YMwd])$/, "frequency")
+                init(params.get("a"), /^(\d+)([smhdwM])$/, "time-improving")
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2em;
+        }
+
+        .content {
+            flex: 1 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        footer {
+            flex-shrink: 0;
+            padding-bottom: 2em;
+        }
+
+        h1 {
+            margin: 0;
+            padding: 1em;
+            text-align: center;
+        }
+
+        .disclaimer {
+            margin: 0 auto;
+            margin-bottom: 2em;
+            padding: 0;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .input-list {
+            display: flex;
+            justify-content: space-between;
+            padding: 0;
+        }
+
+        .input-list>* {
+            border: 1px solid black;
+            padding: 1em;
+        }
+
+        .input-list input {
+            border: 1px solid black;
+            max-width: 3em;
+        }
+
+        .input-list>:not(:first-child) {
+            margin-left: 1em;
+        }
+
+        #check-button {
+            margin: 1em;
+            padding: 0.5em 1em;
+            font-size: 2em;
+        }
+
+        .result-display {
+            border: 1px solid black;
+            text-align: center;
+            max-width: 40em;
+            padding: 1em 2em;
+        }
+
+        .input {
+            margin-top: 0.5em;
+        }
+
+        .recommend-improve,
+        .recommend-caution,
+        .recommend-avoid {
+            margin-bottom: 1em;
+            font-weight: bold;
+        }
+
+        #result-positive,
+        #result-negative {
+            text-decoration: underline;
+        }
+
+        [type=number]::-webkit-inner-spin-button,
+        [type=number]::-webkit-outer-spin-button {
+            height: auto;
+        }
+
+        .result-display,
+        .result-display>* {
+            display: none;
+        }
+
+        .result-display[data-recommend=improve] {
+            background-color: #64ffad;
+        }
+
+        .result-display[data-recommend=caution] {
+            background-color: #ffff00;
+        }
+
+        .result-display[data-recommend=avoid] {
+            background-color: #ff9988;
+        }
+
+        .result-display[data-recommend=improve],
+        .result-display[data-recommend=improve] .recommend-improve,
+        .result-display[data-recommend=caution],
+        .result-display[data-recommend=caution] .recommend-caution,
+        .result-display[data-recommend=avoid],
+        .result-display[data-recommend=avoid] .recommend-avoid,
+        .result-display[data-sign=positive],
+        .result-display[data-sign=positive] .result-positive,
+        .result-display[data-sign=equal],
+        .result-display[data-sign=equal] .result-equal,
+        .result-display[data-sign=negative],
+        .result-display[data-sign=negative] .result-negative {
+            display: block;
+        }
+    </style>
+
+    <title>Is it worth it to improve?</title>
+</head>
+
+<body>
+    <div class="content">
+        <h1>Is it worth it to improve?</h1>
+
+        <p class="disclaimer">
+            This is written assuming 250 working days per year and 8 hours per work day. Inspired by
+            <a href="https://xkcd.com/1205/">https://xkcd.com/1205/</a>.
+            <noscript>This requires JavaScript to be enabled.</noscript>
+        </p>
+
+        <div class="input-list">
+            <div class="time-spent">
+                <div class="label">How long does the task take?</div>
+                <div class="input">
+                    <input type="number" min="0" id="time-spent-scale" value="1">
+                    <select id="time-spent-period">
+                        <option value="s" selected>seconds</option>
+                        <option value="m">minutes</option>
+                        <option value="h">hours</option>
+                        <option value="d">days</option>
+                        <option value="w">weeks</option>
+                        <option value="M">months</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="time-saved">
+                <div class="label">How much time will be saved each time?</div>
+                <div class="input">
+                    <input type="number" min="0" id="time-saved-scale" value="1">
+                    <select id="time-saved-period">
+                        <option value="s" selected>seconds</option>
+                        <option value="m">minutes</option>
+                        <option value="h">hours</option>
+                        <option value="d">days</option>
+                        <option value="w">weeks</option>
+                        <option value="M">months</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="frequency">
+                <div class="label">How often is the task done?</div>
+                <div class="input">
+                    <input type="number" id="frequency-scale" value="1"> times per
+                    <select id="frequency-period">
+                        <option value="d" selected>day</option>
+                        <option value="w">week</option>
+                        <option value="M">month</option>
+                        <option value="Y">year</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="time-improving">
+                <div class="label">How much time will it take to improve?</div>
+                <div class="input">
+                    <input type="number" id="time-improving-scale" value="1">
+                    <select id="time-improving-period">
+                        <option value="h" selected>hours</option>
+                        <option value="d">days</option>
+                        <option value="w">weeks</option>
+                        <option value="M">months</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button id="check-button">Check!</button>
+
+        <div class="result-display" id="result-display">
+            <div class="recommend-improve">Improve away!</div>
+            <div class="recommend-caution">Might be worth improve, but you're not saving much time.</div>
+            <div class="recommend-avoid">Don't waste the time.</div>
+
+            <div class="result-positive">
+                You'd have saved about <span id="result-positive">{{placeholder}}</span> by the same
+                time next year.
+            </div>
+
+            <div class="result-equal">
+                You would have spent the same amount of time by the same next year whether you
+                improved this or not.
+            </div>
+
+            <div class="result-negative">
+                You'd have lost about <span id="result-negative">{{placeholder}}</span> by the same
+                time next year.
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Courtesy of <a href="https://github.com/dead-claudia">@dead-claudia</a>, made
+        available under the MIT License (see the source code of this page). This is a single-file
+        page with no network dependencies, so you can save this for local use or even host it
+        yourself elsewhere.
+    </footer>
+</body>
+
+</html>
